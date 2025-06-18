@@ -7,11 +7,11 @@ PubSubClient client(espClient);  // Ahora puedes pasarlo al PubSubClient
 
 void setup() {
  Serial.begin(9600);
- Serial.println("hola");
+ 
 
   //---------- Conectarse a una red por nombre + contraseña-------------------
  
-  Serial.println("probado...");
+  Serial.println("probando...");
   WiFi.begin("iPhone Fran", "holaqtal");
 
   if (WiFi.status() != WL_CONNECTED) {
