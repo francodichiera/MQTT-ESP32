@@ -6,7 +6,7 @@ PubSubClient client(espClient);  // Ahora puedes pasarlo al PubSubClient
 
 
 void setup() {
- Serial.begin(9600);
+ Serial.begin(115200);
 
 
   //---------- Conectarse a una red por nombre + contraseña-------------------
