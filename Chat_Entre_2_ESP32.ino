@@ -7,16 +7,24 @@ PubSubClient client(espClient);  // Ahora puedes pasarlo al PubSubClient
 
 void setup() {
  Serial.begin(9600);
- 
+
 
   //---------- Conectarse a una red por nombre + contraseña-------------------
  
-  Serial.println("probando...");
+  Serial.println("probado...");
   WiFi.begin("iPhone Fran", "holaqtal");
 
-  if (WiFi.status() != WL_CONNECTED) {
+  
+  while (WiFi.status() != WL_CONNECTED) {
+
+    Serial.print(".");
+   
+    delay(500);
     // aun no esta conectado
   }
+  Serial.println("");   
+   
+
   // ok
 
   //-----2. Configurar el broker MQTT-----
@@ -27,7 +35,12 @@ void setup() {
   //------3. Conectarse a un tópico-------
   client.connect("AnuelAA");  // devuelve un booleano indicando si se conecto correctamente
 
-  client.connected();  // devuelve un booleano que nos permite chequear si la conexión fue exitosa
+  while(!client.connected())
+  {
+    Serial.print("not connected.");
+    delay(500);  // devuelve un booleano que nos permite chequear si la conexión fue exitosa
+  }
+   
 
   client.subscribe("huergo/sistemas-embebidos/dichiera");  // seguir patron del topico a escuchar
 
@@ -40,8 +53,10 @@ void loop() {
   
   if (Serial.available()) {
     String msg;
+
     msg = Serial.readStringUntil('\n');
-    client.publish("huergo/sistemas-embebidos/maradona", "hola kudi");  // convertir el mensaje mediante .c_str()
+    msg = "dichiera:"+ msg;
+    client.publish("huergo/sistemas-embebidos/luzko", msg.c_str());  // convertir el mensaje mediante .c_str()
 
   }
 
@@ -56,9 +71,11 @@ void callback(char* topic, byte* payload, unsigned int length) {
   // Iteramos el payload
   for (int i = 0; i < length; i++) {
     char letra = (char)payload[i];
+
+    Serial.print(letra);
     
   }
-  Serial.println("letra");
+  Serial.println();
   
 
 }
