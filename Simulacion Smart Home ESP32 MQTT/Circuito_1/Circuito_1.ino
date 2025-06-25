@@ -1,0 +1,113 @@
+//pulsador 1 a GPIO 25
+//pulsador 2 a GPIO 26
+//pulsador 3 a GPIO 27
+//pulsador 4 a GPIO 14
+//LDR a GPIO 36
+
+#include <WiFi.h>
+#include <PubSubClient.h>
+
+// Pines
+const int buttonPins[5] = {27, 33, 25, 26, 14};
+const int ldrPin = 39;
+
+// Tópicos MQTT correspondientes
+const char* topics[4] = {
+  "casa/luz/living",
+  "casa/luz/cocina",
+  "casa/luz/dormitorio",
+  "casa/luz/baño"
+};
+
+const char* allLightsTopic = "casa/luz/todas";
+
+// Estados actuales de cada luz (ON = true, OFF = false)
+struct EstadoLuz {
+  bool estado[4];  // Uno por cada botón
+} luces;
+
+WiFiClient espClient;
+PubSubClient client(espClient);
+
+// Umbral de oscuridad
+const int LDR_UMBRAL = 2500;
+bool lucesEncendidasPorOscuridad = false;
+
+void setup() {
+  Serial.begin(115200);
+
+  // Inicializar pines de botones
+  for (int i = 0; i < 5; i++) {
+    pinMode(buttonPins[i], INPUT_PULLUP);
+    luces.estado[i] = false;  // Inicialmente apagadas
+  }
+
+  // Conexión WiFi
+  WiFi.begin("iPhone Fran", "holaqtal");
+  while (WiFi.status() != WL_CONNECTED) {
+    Serial.print(".");
+    delay(500);
+  }
+  Serial.println("Conectado a WiFi");
+
+  // MQTT
+  client.setServer("broker.hivemq.com", 1883);
+  while (!client.connected()) {
+    Serial.print("Conectando MQTT...");
+    client.connect("PanelControl");
+    delay(500);
+  }
+  Serial.println("Conectado a MQTT");
+
+  client.setCallback(callback);
+}
+
+void loop() {
+  client.loop();
+  controlarBotones();
+  controlarLDR();
+}
+
+void controlarBotones() {
+  for (int i = 0; i < 4; i++) {
+    if (digitalRead(buttonPins[i]) == LOW) {  // Botón presionado
+      delay(50);  // Pequeño debounce
+      if (digitalRead(buttonPins[i]) == LOW) {
+        luces.estado[i] = !luces.estado[i];  // Cambiar estado
+        const char* mensaje = luces.estado[i] ? "ON" : "OFF";
+        client.publish(topics[i], mensaje);
+        Serial.printf("Botón %d -> %s\n", i + 1, mensaje);
+        delay(500);  // Evita múltiples envíos por una sola pulsación
+      }
+    }
+  }
+}
+
+void controlarLDR() {
+  int ldrValue = analogRead(ldrPin);
+  Serial.print("LDR: ");
+  Serial.println(ldrValue);
+
+  if (ldrValue < LDR_UMBRAL && !lucesEncendidasPorOscuridad) {
+    client.publish(allLightsTopic, "ON");
+    lucesEncendidasPorOscuridad = true;
+    Serial.println("Oscuridad detectada -> Encender todas las luces");
+  } else if (ldrValue >= LDR_UMBRAL && lucesEncendidasPorOscuridad) {
+    client.publish(allLightsTopic, "OFF");
+    lucesEncendidasPorOscuridad = false;
+    Serial.println("Luz detectada -> Apagar todas las luces");
+  }
+
+  delay(1000);  // Límite de lectura del LDR
+}
+
+void callback(char* topic, byte* payload, unsigned int length) {
+  Serial.print("Mensaje recibido en ");
+  Serial.print(topic);
+  Serial.print(": ");
+
+  for (int i = 0; i < length; i++) {
+    Serial.print((char)payload[i]);
+  }
+  Serial.println();
+}
