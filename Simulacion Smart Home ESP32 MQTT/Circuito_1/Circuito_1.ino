@@ -1,9 +1,3 @@
-//pulsador 1 a GPIO 25
-//pulsador 2 a GPIO 26
-//pulsador 3 a GPIO 27
-//pulsador 4 a GPIO 14
-//LDR a GPIO 36
-
 #include <WiFi.h>
 #include <PubSubClient.h>
 
@@ -18,46 +12,44 @@ const char* topics[4] = {
   "casa/luz/dormitorio",
   "casa/luz/baño"
 };
-
 const char* allLightsTopic = "casa/luz/todas";
 
-// Estados actuales de cada luz (ON = true, OFF = false)
-struct EstadoLuz {
-  bool estado[4];  // Uno por cada botón
-} luces;
+// Estados actuales de cada luz
+bool lucesEstado[4] = {false, false, false, false};
+bool lucesEncendidasPorOscuridad = false;
 
 WiFiClient espClient;
 PubSubClient client(espClient);
 
 // Umbral de oscuridad
 const int LDR_UMBRAL = 2500;
-bool lucesEncendidasPorOscuridad = false;
 
 void setup() {
   Serial.begin(115200);
 
   // Inicializar pines de botones
-  for (int i = 0; i < 5; i++) {
+  for (int i = 0; i < 4; i++) {
     pinMode(buttonPins[i], INPUT_PULLUP);
-    luces.estado[i] = false;  // Inicialmente apagadas
   }
 
   // Conexión WiFi
   WiFi.begin("iPhone Fran", "holaqtal");
   while (WiFi.status() != WL_CONNECTED) {
-    Serial.print(".");
     delay(500);
+    Serial.print(".");
   }
   Serial.println("Conectado a WiFi");
 
-  // MQTT
+  // Configuración MQTT
   client.setServer("broker.hivemq.com", 1883);
   while (!client.connected()) {
-    Serial.print("Conectando MQTT...");
-    client.connect("PanelControl");
-    delay(500);
+    Serial.println("Conectando MQTT...");
+    if (client.connect("PanelControl")) {
+      Serial.println("Conectado a MQTT");
+    } else {
+      delay(500);
+    }
   }
-  Serial.println("Conectado a MQTT");
 
   client.setCallback(callback);
 }
@@ -70,14 +62,14 @@ void loop() {
 
 void controlarBotones() {
   for (int i = 0; i < 4; i++) {
-    if (digitalRead(buttonPins[i]) == LOW) {  // Botón presionado
+    if (digitalRead(buttonPins[i]) == LOW) {  // Si el botón está presionado
       delay(50);  // Pequeño debounce
-      if (digitalRead(buttonPins[i]) == LOW) {
-        luces.estado[i] = !luces.estado[i];  // Cambiar estado
-        const char* mensaje = luces.estado[i] ? "ON" : "OFF";
-        client.publish(topics[i], mensaje);
+      if (digitalRead(buttonPins[i]) == LOW) {  // Comprobar de nuevo
+        lucesEstado[i] = !lucesEstado[i];  // Cambiar el estado de la luz
+        const char* mensaje = lucesEstado[i] ? "ON" : "OFF";
+        client.publish(topics[i], mensaje);  // Publicar estado de la luz
         Serial.printf("Botón %d -> %s\n", i + 1, mensaje);
-        delay(500);  // Evita múltiples envíos por una sola pulsación
+        delay(500);  // Evitar múltiples envíos por una sola pulsación
       }
     }
   }
@@ -88,6 +80,7 @@ void controlarLDR() {
   Serial.print("LDR: ");
   Serial.println(ldrValue);
 
+  // Controlar luces por la cantidad de luz detectada
   if (ldrValue < LDR_UMBRAL && !lucesEncendidasPorOscuridad) {
     client.publish(allLightsTopic, "ON");
     lucesEncendidasPorOscuridad = true;
@@ -105,7 +98,6 @@ void callback(char* topic, byte* payload, unsigned int length) {
   Serial.print("Mensaje recibido en ");
   Serial.print(topic);
   Serial.print(": ");
-
   for (int i = 0; i < length; i++) {
     Serial.print((char)payload[i]);
   }
